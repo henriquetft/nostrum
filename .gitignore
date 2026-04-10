@@ -1,0 +1,8 @@
+.build-vscode/
+.idea/
+.vscode/
+.DS_Store
+DONTCOMMIT.txt
+devcert/
+cmake-build-debug/
+

@@ -1,0 +1,181 @@
+/* ========================================================================== */
+/* Copyright (c) 2026 Henrique Teófilo                                        */
+/* All rights reserved.                                                       */
+/*                                                                            */
+/* NostrumMsgEose object (Nostr EOSE message)                                 */
+/* Implementation of nostrum-msg-eose.h                                       */
+/*                                                                            */
+/* This file is part of Nostrum Project.                                      */
+/* For the terms of usage and distribution, please see COPYING file.          */
+/* ========================================================================== */
+
+#include "nostrum-msg-eose.h"
+#include <json-glib/json-glib.h>
+
+G_DEFINE_QUARK (nostrum-msg-eose-error-quark, nostrum_msg_eose_error)
+
+struct _NostrumMsgEose
+{
+        gchar *subscription_id; // owned
+};
+
+// =============================================================================
+// CONSTRUCTORS / DESTRUCTORS
+// =============================================================================
+
+NostrumMsgEose *
+nostrum_msg_eose_new (void)
+{
+        NostrumMsgEose *eose = g_new0 (NostrumMsgEose, 1);
+        return eose;
+}
+
+void
+nostrum_msg_eose_free (NostrumMsgEose *eose)
+{
+        if (!eose)
+                return;
+
+        g_free (eose->subscription_id);
+        g_free (eose);
+}
+
+// =============================================================================
+// JSON CONVERSIONS
+// =============================================================================
+
+NostrumMsgEose *
+nostrum_msg_eose_from_json (const char *json, GError **err)
+{
+        g_return_val_if_fail (json != NULL, NULL);
+        g_return_val_if_fail (err == NULL || *err == NULL, NULL);
+
+        NostrumMsgEose *eose = nostrum_msg_eose_new ();
+
+        // Parsing JSON string
+        g_autoptr (JsonParser) parser = json_parser_new ();
+        g_autoptr (GError) json_err = NULL;
+
+        if (!json_parser_load_from_data (parser, json, -1, &json_err)) {
+                g_set_error (err,
+                             NOSTRUM_MSG_EOSE_ERROR,
+                             NOSTRUM_MSG_EOSE_ERROR_PARSE,
+                             "Error parsing EOSE JSON: (%s, code=%d): %s",
+                             g_quark_to_string (json_err->domain),
+                             json_err->code,
+                             json_err->message);
+                goto error;
+        }
+
+        JsonNode *root = json_parser_get_root (parser);
+        if (!JSON_NODE_HOLDS_ARRAY (root)) {
+                g_set_error (err,
+                             NOSTRUM_MSG_EOSE_ERROR,
+                             NOSTRUM_MSG_EOSE_ERROR_PARSE,
+                             "EOSE message must be a JSON array");
+                goto error;
+        }
+
+        JsonArray *arr = json_node_get_array (root);
+        gsize len = json_array_get_length (arr);
+
+        if (len < 2) {
+                g_set_error (err,
+                             NOSTRUM_MSG_EOSE_ERROR,
+                             NOSTRUM_MSG_EOSE_ERROR_PARSE,
+                             "EOSE message must have at least 2 elements");
+                goto error;
+        }
+
+        // Element 0: "EOSE"
+        JsonNode *type_node = json_array_get_element (arr, 0);
+        if (!JSON_NODE_HOLDS_VALUE (type_node) ||
+            json_node_get_value_type (type_node) != G_TYPE_STRING) {
+                g_set_error (err,
+                             NOSTRUM_MSG_EOSE_ERROR,
+                             NOSTRUM_MSG_EOSE_ERROR_PARSE,
+                             "First element of EOSE message must be a string");
+                goto error;
+        }
+
+        const char *type_str = json_node_get_string (type_node);
+        if (g_strcmp0 (type_str, "EOSE") != 0) {
+                g_set_error (err,
+                             NOSTRUM_MSG_EOSE_ERROR,
+                             NOSTRUM_MSG_EOSE_ERROR_PARSE,
+                             "First element of EOSE message must be \"EOSE\"");
+                goto error;
+        }
+
+        // Element 1: subscription id (string)
+        JsonNode *id_node = json_array_get_element (arr, 1);
+        if (!JSON_NODE_HOLDS_VALUE (id_node) ||
+            json_node_get_value_type (id_node) != G_TYPE_STRING) {
+                g_set_error (err,
+                             NOSTRUM_MSG_EOSE_ERROR,
+                             NOSTRUM_MSG_EOSE_ERROR_PARSE,
+                             "Second element of EOSE message must be a string "
+                             "(subscription id)");
+                goto error;
+        }
+
+        const char *subs_id_str = json_node_get_string (id_node);
+        nostrum_msg_eose_set_subscription_id (eose, subs_id_str);
+
+        return eose; // transfer-full
+
+error:
+        nostrum_msg_eose_free (eose);
+        return NULL;
+}
+
+gchar *
+nostrum_msg_eose_to_json (const NostrumMsgEose *eose)
+{
+        g_return_val_if_fail (eose != NULL, NULL);
+
+        g_autoptr (JsonBuilder) b = json_builder_new ();
+
+        json_builder_begin_array (b);
+
+        // Element 0: "EOSE"
+        json_builder_add_string_value (b, "EOSE");
+
+        // Element 1: subscription id
+        json_builder_add_string_value (b,
+                                       eose->subscription_id
+                                               ? eose->subscription_id
+                                               : "");
+
+        json_builder_end_array (b);
+
+        g_autoptr (JsonNode) root = json_builder_get_root (b);
+        return json_to_string (root, FALSE); // transfer-full
+}
+
+// =============================================================================
+// GETTERS
+// =============================================================================
+
+const gchar *
+nostrum_msg_eose_get_subscription_id (const NostrumMsgEose *eose)
+{
+        g_return_val_if_fail (eose != NULL, NULL);
+        return eose->subscription_id;
+}
+
+// =============================================================================
+// SETTERS
+// =============================================================================
+
+void
+nostrum_msg_eose_set_subscription_id (NostrumMsgEose      *eose,
+                                      const gchar         *subs_id)
+{
+        g_return_if_fail (eose != NULL);
+
+        g_free (eose->subscription_id);
+        eose->subscription_id = subs_id ? g_strdup (subs_id)
+                                        : NULL;
+}
+

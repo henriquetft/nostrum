@@ -1,0 +1,4 @@
+#pragma once
+
+#define NOSTRUM_VERSION "@APP_VERSION@"
+#define NOSTRUM_COMMIT "@GIT_COMMIT@"
