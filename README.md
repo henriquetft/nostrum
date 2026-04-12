@@ -8,6 +8,17 @@ Nostrum Relay is a Nostr relay implementation written in C, focused on performan
 
 The codebase is still evolving and many features are incomplete or unstable. Breaking changes may occur frequently, and it is not recommended for production use at this stage.
 
+## Implemented NIPs
+* [x] NIP-01 — Basic protocol flow description
+* [x] NIP-02 — Follow List
+* [x] NIP-09 — Event Deletion Request
+* [x] NIP-11 — Relay Information Document
+* [x] NIP-12 — Generic Tag Queries
+* [x] NIP-16 — Event Treatment *(NIP-01 related)*
+* [x] NIP-20 — Command Results *(NIP-01 related)*
+* [x] NIP-33 — Parameterized Replaceable Events *(NIP-01 related)*
+
+
 ## ⚙️ Tech Stack
 
 - C (C11)
