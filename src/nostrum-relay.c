@@ -796,7 +796,7 @@ on_nip11 (SoupServer        *server,
         const char *nip11_json = "{"
                 "\"name\":\"%s\","
                 "\"description\":\"%s\","
-                "\"supported_nips\":[1,2,9,11,12],"
+                "\"supported_nips\":[1,2,9,11,12,16,20,33],"
                 "\"software\":\"nostrum-relay\","
                 "\"version\":\"%s\","
                 "\"contact\":\"%s\""
