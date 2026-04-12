@@ -13,7 +13,7 @@ The codebase is still evolving and many features are incomplete or unstable. Bre
 * [x] NIP-02 — Follow List
 * [x] NIP-09 — Event Deletion Request
 * [x] NIP-11 — Relay Information Document
-* [x] NIP-12 — Generic Tag Queries
+* [x] NIP-12 — Generic Tag Queries *(NIP-01 related)*
 * [x] NIP-16 — Event Treatment *(NIP-01 related)*
 * [x] NIP-20 — Command Results *(NIP-01 related)*
 * [x] NIP-33 — Parameterized Replaceable Events *(NIP-01 related)*
