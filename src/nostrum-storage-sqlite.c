@@ -807,7 +807,7 @@ nostrum_storage_search (const NostrumStorage   *storage,
         g_string_prepend (sql, "SELECT raw_json, id, dedup_key FROM (");
         g_string_append (sql, ") ORDER BY created_at DESC;");
 
-        g_message ("Executing SQL: %s", sql->str);
+        g_debug ("Executing SQL: %s", sql->str);
 
         sqlite3_stmt *stmt = NULL;
         int rc = sqlite3_prepare_v2 (storage->db, sql->str, -1, &stmt, NULL);

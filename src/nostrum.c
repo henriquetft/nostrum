@@ -13,6 +13,7 @@
 #include "nostrum-relay.h"
 #include "nostrum-version.h"
 
+#define G_LOG_DOMAIN "nostrum"
 
 static gboolean
 on_signal_quit (gpointer data)
@@ -25,6 +26,7 @@ on_signal_quit (gpointer data)
 int
 main (int argc, char **argv)
 {
+        // FIXME remove this
         g_setenv("G_MESSAGES_DEBUG",
                  "nostrum nostrum-relay nostrum-storage",
                  TRUE);
@@ -32,7 +34,7 @@ main (int argc, char **argv)
         (void)argc;
         (void)argv;
 
-        g_message ("Starting nostrum v%s ...", NOSTRUM_VERSION);
+        g_info ("Starting nostrum v%s ...", NOSTRUM_VERSION);
         // TODO read config from file
         struct NostrumRelayConfig cfg;
         nostrum_relay_config_init (&cfg);
@@ -45,8 +47,6 @@ main (int argc, char **argv)
         cfg.info_name         = "Relay Nostrum";
         cfg.info_description  = "Nostrum relay";
         cfg.info_contact      = "admin@admin.me";
-        
-        
         
         g_autoptr (NostrumRelay) relay = nostrum_relay_new (&cfg);
         g_autoptr (GError) err = NULL;
