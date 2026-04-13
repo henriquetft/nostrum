@@ -103,11 +103,11 @@ nostrum_relay_new (const struct NostrumRelayConfig *cfg)
                                            NULL);
 
         // NIP-11
-        soup_server_add_handler (relay->server, "/", on_nip11, cfg, NULL);
+        soup_server_add_handler (relay->server, "/", on_nip11, relay->cfg, NULL);
 
         // Storage
-        g_debug ("Initializing relay storage with db path: %s",
-                 relay->cfg->db_path);
+        g_info ("Initializing relay storage with db path: %s",
+                relay->cfg->db_path);
         relay->storage = nostrum_storage_new (relay->cfg->db_path);
         GError *repo_err = NULL;
         if (!nostrum_storage_init (relay->storage, &repo_err)) {
@@ -142,19 +142,20 @@ nostrum_relay_listen (NostrumRelay  *relay,
         g_return_val_if_fail (relay != NULL,                   FALSE);
         g_return_val_if_fail (relay->cfg != NULL,              FALSE);
         g_return_val_if_fail (relay->cfg->server_http_port ||
-                              relay->cfg->server_https_port,          FALSE);
+                              relay->cfg->server_https_port,   FALSE);
         
         // FIXME validations on config values
         
         if (relay->cfg->server_https_port != 0) {
-                g_message ("Checking TLS certificate file ...");
-                if (g_file_test (relay->cfg->server_tls_cert, G_FILE_TEST_EXISTS) &&
-                    g_file_test (relay->cfg->server_tls_key, G_FILE_TEST_EXISTS)) {
-
+                const gchar *f_cert = relay->cfg->server_tls_cert;
+                const gchar *f_key = relay->cfg->server_tls_key;
+                if (g_file_test (f_cert, G_FILE_TEST_EXISTS) &&
+                    g_file_test (f_key, G_FILE_TEST_EXISTS)) {
+                        g_info ("Loading TLS certificate file ...");
                         g_autoptr (GTlsCertificate) cert =
-                          g_tls_certificate_new_from_files(relay->cfg->server_tls_cert,
-                                                           relay->cfg->server_tls_key,
-                                                           error);
+                          g_tls_certificate_new_from_files (f_cert,
+                                                            f_key,
+                                                            error);
 
                         if (!cert) {
                                 g_critical ("Error loading TLS: %s",
@@ -169,15 +170,18 @@ nostrum_relay_listen (NostrumRelay  *relay,
                                              relay->cfg->server_https_port,
                                              SOUP_SERVER_LISTEN_HTTPS,
                                              error)) {
-                                g_critical("listen TLS: %s", (*error)->message);
+                                g_critical("Listen TLS: %s", (*error)->message);
                                 return FALSE;
                         }
 
-                        g_message("WSS https://0.0.0.0:%d/",
-                                  relay->cfg->server_https_port);
+                        g_info ("Started server on https://0.0.0.0:%d/  "
+                                "(NIP-11 with Accept: application/nostr+json)",
+                                relay->cfg->server_http_port);
+                        g_info("Started server on wss://0.0.0.0:%d/",
+                                relay->cfg->server_https_port);
 
                 } else {
-                        g_message ("Missing pem files");
+                        g_warning ("Missing PEM files: unable to start HTTPS");
                 }
         }
 
@@ -191,9 +195,11 @@ nostrum_relay_listen (NostrumRelay  *relay,
                         return FALSE;
                 }
 
-                g_message ("HTTP:  http://0.0.0.0:%d/  (NIP-11 with Accept: "
-                           "application/nostr+json)", relay->cfg->server_http_port);
-                g_message ("WS:    ws://0.0.0.0:%d", relay->cfg->server_http_port);
+                g_info ("Started server on http://0.0.0.0:%d/  "
+                        "(NIP-11 with Accept: application/nostr+json)",
+                        relay->cfg->server_http_port);
+                g_info ("Started server on ws://0.0.0.0:%d",
+                        relay->cfg->server_http_port);
         }
 
         return TRUE;
@@ -279,8 +285,7 @@ process_nip09(NostrumStorage *storage, const NostrumEvent *event)
         if (nostrum_event_get_kind (event) != 5)
                 return;
         
-        g_message ("Processing NIP-09 event id=%s",
-                   nostrum_event_get_id (event));
+        g_debug ("Processing NIP-09 event id=%s", nostrum_event_get_id (event));
         
         const char *evt_pubkey = nostrum_event_get_pubkey(event);
         gint64 evt_created_at = nostrum_event_get_created_at(event);
@@ -350,7 +355,7 @@ process_nip09(NostrumStorage *storage, const NostrumEvent *event)
                 g_clear_error (&err);
                 return;
         }
-        g_message ("Found %d events matching NIP-09 filters", events->len);
+        g_debug ("Found %d events matching NIP-09 filters", events->len);
         for (gint i = events->len - 1; i >= 0; i--) {
                 NostrumEvent *e = g_ptr_array_index (events, i);
                 if (g_strcmp0(nostrum_event_get_pubkey(e), evt_pubkey) != 0) {
@@ -387,12 +392,12 @@ handle_event (SoupWebsocketConnection *conn,
 {
         // Expected: ["EVENT", {event}]
 
-        g_message ("Handling EVENT");
+        g_debug ("Handling EVENT");
 
         // VALIDATIONS ---------------------------------------------------------
 
         if (json_array_get_length (arr) < 2) {
-                g_message ("WS: no event");
+                g_debug ("No event");
                 msg_response_to_event (conn, NULL, FALSE, "no event provided");
                 return;
         }
@@ -416,8 +421,8 @@ handle_event (SoupWebsocketConnection *conn,
         g_autoptr(NostrumEvent) event = nostrum_event_from_json (event_json_str,
                                                                  &err);
         if (!event) {
-                g_message ("Failed to convert to NostrumEvent: %s",
-                           err ? err->message : "unknown error");
+                g_debug ("Failed to convert to NostrumEvent: %s",
+                         err ? err->message : "unknown error");
                 g_clear_error (&err);
                 msg_response_to_event (conn, NULL, FALSE, "error converting "
                                                           "event to object");
@@ -440,14 +445,14 @@ handle_event (SoupWebsocketConnection *conn,
         // Persist event in DB -------------------------------------------------
         NostrumRelay *relay = g_object_get_data (G_OBJECT (conn),
                                                  "nostrum-relay");
-        g_message ("Persisting event id=%s kind=%d created_at=%ld",
-                   nostrum_event_get_id (event),
-                   nostrum_event_get_kind (event),
-                   nostrum_event_get_created_at (event));
+        g_debug ("Persisting event id=%s kind=%d created_at=%ld",
+                 nostrum_event_get_id (event),
+                 nostrum_event_get_kind (event),
+                 nostrum_event_get_created_at (event));
 
         if (!nostrum_storage_save (relay->storage, event, &err)) {
-                g_message ("Failed to persist event: %s",
-                           err ? err->message : "unknown error");
+                g_debug ("Failed to persist event: %s",
+                         err ? err->message : "unknown error");
                 
                 const gchar *reason = "error: failed to persist event";
                 gboolean accepted = FALSE;
@@ -488,8 +493,8 @@ handle_event (SoupWebsocketConnection *conn,
                 for (guint i = 0; i < subs->len; i++) {
                         NostrumSubscription *sub = g_ptr_array_index (subs, i);
                         if (nostrum_subscription_matches_event (sub, event)) {
-                                g_message ("Event matches subscription id=%s",
-                                           nostrum_subscription_get_id (sub));
+                                g_debug ("Event matches subscription id=%s",
+                                         nostrum_subscription_get_id (sub));
                                 msg_event_to_subscriber (iconn, sub, event);
                         }
                 }
@@ -515,8 +520,8 @@ add_or_replace_subscription(SoupWebsocketConnection  *conn,
                 const gchar *existing_id =
                     nostrum_subscription_get_id (existing);
                 if (existing_id && g_strcmp0 (existing_id, sub_id) == 0) {
-                        g_message ("Subscription '%s' already exists -> "
-                                   "replacing", sub_id);
+                        g_debug ("Subscription '%s' already exists -> "
+                                 "replacing", sub_id);
                         // Free old subscription and remove from array
                         g_ptr_array_remove_index_fast (active_subs, i);
                         break;
@@ -524,8 +529,7 @@ add_or_replace_subscription(SoupWebsocketConnection  *conn,
         }
 
         g_ptr_array_add (active_subs, sub);
-        g_message ("Subscription '%s' associated to "
-                   "connection %p", sub_id, conn);
+        g_debug ("Subscription '%s' associated to connection %p", sub_id, conn);
 
         return sub;
 }
@@ -534,7 +538,7 @@ static void
 handle_req (SoupWebsocketConnection *conn, JsonNode *node, const gchar *sub_id)
 {
         // Expected: ["REQ", "sub_id", {filter1}, {filter2}, ...]
-        g_message ("Handling REQ (%s) ...", sub_id);
+        g_debug ("Handling REQ (%s) ...", sub_id);
 
         NostrumRelay *relay = g_object_get_data (G_OBJECT (conn),
                                                  "nostrum-relay");
@@ -583,7 +587,7 @@ handle_req (SoupWebsocketConnection *conn, JsonNode *node, const gchar *sub_id)
                         goto error;
                 }
                 
-                g_message ("Sending stored events (%d) ...", events->len);
+                g_debug ("Sending stored events (%d) ...", events->len);
                 // Send all events found
                 for (guint i = 0; i < events->len; i++) {
                         NostrumEvent *ev = g_ptr_array_index (events, i);
@@ -608,13 +612,13 @@ handle_close (SoupWebsocketConnection *conn, JsonArray *arr)
         g_debug ("dispatch: CLOSE");
         gsize n = json_array_get_length (arr);
         if (n < 2) {
-                g_warning ("CLOSE: array too short");
+                g_debug ("CLOSE: array too short");
                 return;
         }
         JsonNode *id_node = json_array_get_element (arr, 1);
         if (!JSON_NODE_HOLDS_VALUE(id_node) ||
              json_node_get_value_type(id_node) != G_TYPE_STRING) {
-                g_warning("CLOSE: subscription id must be a string");
+                g_debug("CLOSE: subscription id must be a string");
                 return;
         }
         
@@ -650,39 +654,39 @@ on_ws_message (SoupWebsocketConnection *conn,
                 return;
 
         g_autofree gchar *text = g_strndup (data, len);
-        g_debug ("WS: received raw message: '%s'", text);
+        g_debug ("Received raw message: '%s'", text);
 
         g_autoptr (JsonParser) parser = json_parser_new ();
         GError *perr = NULL;
         if (!json_parser_load_from_data (parser, text, -1, &perr)) {
-                g_message ("WS: JSON parse error: %s", perr->message);
+                g_debug ("JSON: parse error: %s", perr->message);
                 g_clear_error (&perr);
                 return;
         }
 
         JsonNode *root = json_parser_get_root (parser);
         if (!JSON_NODE_HOLDS_ARRAY (root)) {
-                g_message ("WS: root JSON must be an array (NIP-01).");
+                g_debug ("JSON: root JSON must be an array (NIP-01).");
                 return;
         }
 
         JsonArray *arr = json_node_get_array (root);
         if (json_array_get_length (arr) == 0) {
-                g_message ("WS: empty message array.");
+                g_debug ("JSON: empty message array.");
                 return;
         }
 
         JsonNode *n0 = json_array_get_element (arr, 0);
         if (!JSON_NODE_HOLDS_VALUE (n0) ||
             json_node_get_value_type (n0) != G_TYPE_STRING) {
-                g_message ("WS: first element must be a string message type.");
+                g_debug ("JSON: first element must be a string message type.");
                 return;
         }
 
         const gchar *typ = json_node_get_string (n0);
         const gchar *arg1 = NULL;
         if (!typ) {
-                g_message ("WS: message type is NULL.");
+                g_debug ("JSON: message type is NULL.");
                 return;
         }
 
@@ -701,10 +705,10 @@ on_ws_message (SoupWebsocketConnection *conn,
         } else if (g_strcmp0 (typ, "CLOSE") == 0) {
                 handle_close (conn, arr);
         } else {
-                g_message ("WS: unknown/unsupported message type: '%s'", typ);
+                g_debug ("Unknown/unsupported message type: '%s'", typ);
         }
         
-        g_debug("done handling message");
+        g_debug("Done handling message");
 }
 
 // =============================================================================
@@ -712,19 +716,27 @@ on_ws_message (SoupWebsocketConnection *conn,
 // =============================================================================
 
 static void
-on_ws_error (SoupWebsocketConnection *c, GError *error, gpointer u)
+on_ws_error (SoupWebsocketConnection *conn, GError *error, gpointer u)
 {
-        (void)c;
-        (void)u;
-        g_warning ("WS: error: %s", error ? error->message : "unknown");
+        const gchar *ip = g_object_get_data(G_OBJECT(conn), "client-ip");
+        guint16 port = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (conn),
+                                                            "client-port"));
+
+        g_warning ("WS error on conn %s:%d: %s",
+                   ip,
+                   port,
+                   error ? error->message : "unknown");
 }
 
 static void
 on_ws_closed (SoupWebsocketConnection *conn, gpointer u)
 {
-        (void)conn;
         (void)u;
-        g_message ("WS: closed");
+        const gchar *ip = g_object_get_data(G_OBJECT(conn), "client-ip");
+        guint16 port = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (conn),
+                                                            "client-port"));
+
+        g_info ("WS connection closed: %s:%d", ip, port);
         connections_list = g_list_remove (connections_list, conn);
 }
 
@@ -741,7 +753,26 @@ on_ws_connected (SoupServer               *server,
 
         NostrumRelay *relay = (NostrumRelay *)user_data;
 
-        g_message ("New connection established");
+
+        GSocketAddress *addr = soup_server_message_get_remote_address (msg);
+        gchar *ip_str = NULL;
+        guint16 port = 0;
+        if (G_IS_INET_SOCKET_ADDRESS (addr)) {
+                GInetSocketAddress *inet_sock = G_INET_SOCKET_ADDRESS(addr);
+                GInetAddress *inet_addr =
+                  g_inet_socket_address_get_address (G_INET_SOCKET_ADDRESS (addr));
+                ip_str = g_inet_address_to_string (inet_addr);
+                port = g_inet_socket_address_get_port(inet_sock);
+        } else {
+                ip_str = g_strdup ("unknown");
+        }
+
+        g_info ("New connection established from %s:%d", ip_str, port);
+
+        g_object_set_data_full (G_OBJECT(conn), "client-ip", ip_str, g_free);
+        g_object_set_data (G_OBJECT (conn),
+                           "client-port",
+                           GUINT_TO_POINTER(port));
 
         // keep the connection alive
         g_object_ref (conn);
@@ -770,10 +801,9 @@ on_nip11 (SoupServer        *server,
         (void)path;
         (void)query;
 
-        const struct NostrumRelayConfig *cfg = (const struct NostrumRelayConfig *)user_data;
+        const struct NostrumRelayConfig *cfg =
+            (const struct NostrumRelayConfig *)user_data;
 
-
-    
         SoupMessageHeaders *reqh =
             soup_server_message_get_request_headers (msg);
 
