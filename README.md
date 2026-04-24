@@ -1,5 +1,9 @@
 # Nostrum Relay
 
+<p align="center">
+  <img src="docs/nostrum.png" alt="nostrum logo" width="200"/>
+</p>
+
 Nostrum Relay is a Nostr relay implementation written in C, focused on performance, simplicity, and low-level control.
 
 ## 🚧 Project Status
