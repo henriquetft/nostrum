@@ -115,6 +115,7 @@ target_include_directories(nostrum-storage-sqlite
 # Relay
 add_library(nostrum-relay
     src/nostrum-relay.c
+    src/nostrum-config.c
 )
 
 target_link_libraries(nostrum-relay

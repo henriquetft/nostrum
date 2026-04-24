@@ -8,12 +8,14 @@
 /* For the terms of usage and distribution, please see COPYING file.          */
 /* ========================================================================== */
 
-#include <glib.h>
-#include <glib-unix.h>
 #include "nostrum-relay.h"
+#include "nostrum-config.h"
 #include "nostrum-version.h"
+#include <glib-unix.h>
+#include <glib.h>
 
 #define G_LOG_DOMAIN "nostrum"
+
 
 static gboolean
 on_signal_quit (gpointer data)
@@ -26,37 +28,48 @@ on_signal_quit (gpointer data)
 int
 main (int argc, char **argv)
 {
-        // FIXME remove this
-        g_setenv("G_MESSAGES_DEBUG",
-                 "nostrum nostrum-relay nostrum-storage",
-                 TRUE);
-
         (void)argc;
         (void)argv;
 
+        printf ("    _   __           __\n");
+        printf ("   / | / /___  _____/ /________  ______ ___\n");
+        printf ("  /  |/ / __ \\/ ___/ __/ ___/ / / / __ `__ \\\n");
+        printf (" / /|  / /_/ (__  ) /_/ /  / /_/ / / / / / /\n");
+        printf ("/_/ |_/\\____/____/\\__/_/   \\__,_/_/ /_/ /_/\n\n");
+        printf ("                          v%s\n\n", NOSTRUM_VERSION);
+
+        // FIXME remove this
+        g_setenv ("G_MESSAGES_DEBUG",
+                  "nostrum nostrum-relay nostrum-storage nostrum-config",
+                  TRUE);
+
         g_info ("Starting nostrum v%s ...", NOSTRUM_VERSION);
-        // TODO read config from file
+
+        // LOAD CONFIGURATION --------------------------------------------------
+        g_info ("Loading config ...");
         struct NostrumRelayConfig cfg;
         nostrum_relay_config_init (&cfg);
-        cfg.server_host       = "0.0.0.0";
-        cfg.server_http_port  = 8080;
-        cfg.server_https_port = 0;
-        cfg.db_type           = "sqlite";
-        cfg.db_path           = "nostrum_relay.db";
 
-        cfg.info_name         = "Relay Nostrum";
-        cfg.info_description  = "Nostrum relay";
-        cfg.info_contact      = "admin@admin.me";
-        
+        GError *error = NULL;
+        gboolean result = nostrum_relay_config_load (&cfg, &error);
+        if (!result) {
+                g_critical ("Failed to load config file: %s", error->message);
+                g_clear_error (&error);
+                return EXIT_FAILURE;
+        }
+        g_autofree gchar *cfg_str = nostrum_relay_config_to_string (&cfg);
+        g_debug ("Configuration:\n%s\n", cfg_str);
+
+        // CREATE RELAY --------------------------------------------------------
         g_autoptr (NostrumRelay) relay = nostrum_relay_new (&cfg);
         g_autoptr (GError) err = NULL;
 
-
         if (!nostrum_relay_listen (relay, &err)) {
                 g_critical ("Failed to start relay: %s", err->message);
-                return 1;
+                return EXIT_FAILURE;
         }
 
+        // RUN MAIN LOOP AND SETUP SIGNALS -------------------------------------
         g_autoptr (GMainLoop) loop = g_main_loop_new (NULL, FALSE);
 
         g_unix_signal_add (SIGINT, on_signal_quit, loop);
@@ -66,5 +79,5 @@ main (int argc, char **argv)
 
         g_message ("Quitting nostrum ...");
 
-        return 0;
+        return EXIT_SUCCESS;
 }

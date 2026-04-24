@@ -9,6 +9,7 @@
 /* ========================================================================== */
 
 #include "nostrum-relay.h"
+#include "nostrum-config.h"
 #include "nostrum-msg-ok.h"
 #include "nostrum-event.h"
 #include "nostrum-msg-req.h"
