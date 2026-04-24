@@ -10,6 +10,7 @@
 /* ========================================================================== */
 
 #include "nostrum-event.h"
+#include "nostrum-config.h"
 #include "nostrum-msg-req.h"
 #include "nostrum-filter.h"
 #include "nostrum-msg-closed.h"
@@ -204,75 +205,6 @@ nostrum_relay_listen (NostrumRelay  *relay,
 
         return TRUE;
 }
-
-// =============================================================================
-// CONFIG FUNCTIONS
-// =============================================================================
-
-void
-nostrum_relay_config_init (struct NostrumRelayConfig *cfg)
-{
-        g_return_if_fail (cfg != NULL);
-
-        *cfg = (struct NostrumRelayConfig) {
-                .server_host       = NULL,
-                .server_http_port  = 0,
-                .server_https_port = 0,
-                .server_tls_cert   = NULL,
-                .server_tls_key    = NULL,
-                
-                .db_path    = NULL,
-                .db_type    = NULL,
-
-                .info_name         = NULL,
-                .info_description  = NULL,
-                .info_contact      = NULL,
-        };
-}
-
-void
-nostrum_relay_config_clear (struct NostrumRelayConfig *cfg)
-{
-        g_return_if_fail (cfg != NULL);
-
-        g_clear_pointer (&cfg->server_host, g_free);
-        g_clear_pointer (&cfg->server_tls_cert, g_free);
-        g_clear_pointer (&cfg->server_tls_key, g_free);
-
-        g_clear_pointer (&cfg->db_path, g_free);
-        g_clear_pointer (&cfg->db_type, g_free);
-        
-        g_clear_pointer (&cfg->info_name, g_free);
-        g_clear_pointer (&cfg->info_description, g_free);
-        g_clear_pointer (&cfg->info_contact, g_free);
-
-        cfg->server_http_port  = 0;
-        cfg->server_https_port = 0;
-}
-
-void
-nostrum_relay_config_copy (struct NostrumRelayConfig         *dst,
-                           const struct NostrumRelayConfig   *src)
-{
-        g_return_if_fail (dst != NULL);
-        g_return_if_fail (src != NULL);
-
-        nostrum_relay_config_clear (dst);
-
-        dst->server_http_port   =  src->server_http_port;
-        dst->server_https_port  =  src->server_https_port;
-        dst->server_host        =  g_strdup (src->server_host);
-        dst->server_tls_cert    =  g_strdup (src->server_tls_cert);
-        dst->server_tls_key     =  g_strdup (src->server_tls_key);
-
-        dst->db_path            =  g_strdup (src->db_path);
-        dst->db_type            =  g_strdup (src->db_type);
-        
-        dst->info_name          =  g_strdup (src->info_name);
-        dst->info_description   =  g_strdup (src->info_description);
-        dst->info_contact       =  g_strdup (src->info_contact);
-}
-
 
 // =============================================================================
 // HANDLE MESSAGE FUNCTIONS
