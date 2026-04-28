@@ -34,14 +34,11 @@
 
 struct _NostrumRelay
 {
-        SoupServer                  *server;
-        NostrumStorage              *storage;
-        struct NostrumRelayConfig   *cfg;
+        SoupServer                 *server;
+        NostrumStorage             *storage;
+        struct NostrumRelayConfig  *cfg;
+        GList                      *connections_list; // SoupWebsocketConnection
 };
-
-// FIXME should be part of NostrumRelay struct
-// List of connected clients
-static GList *connections_list = NULL;
 
 
 static
@@ -78,6 +75,11 @@ listen_on_host (SoupServer                *server,
                 SoupServerListenOptions    opts,
                 GError                   **error);
 
+static void
+terminate_conection (SoupWebsocketConnection  *conn,
+                     NostrumRelay             *relay);
+
+
 // =============================================================================
 
 // curl -H 'Accept: application/nostr+json' http://localhost:8080/
@@ -88,9 +90,9 @@ nostrum_relay_new (const struct NostrumRelayConfig *cfg)
         NostrumRelay *relay = g_new0 (NostrumRelay, 1);
 
         // Copying config
-        relay->cfg = g_new0(struct NostrumRelayConfig, 1);
-        nostrum_relay_config_init(relay->cfg);
-        nostrum_relay_config_copy(relay->cfg, cfg);
+        relay->cfg = g_new0 (struct NostrumRelayConfig, 1);
+        nostrum_relay_config_init (relay->cfg);
+        nostrum_relay_config_copy (relay->cfg, cfg);
 
         relay->server = soup_server_new (NULL);
 
@@ -126,12 +128,33 @@ nostrum_relay_free (NostrumRelay *relay)
         if (!relay)
                 return;
 
+        g_info ("Destroying relay ...");
+
+        soup_server_disconnect (relay->server);
+
+        g_info ("Shutting down all relay connections ...");
+        GList *copy_list_conn = g_list_copy (relay->connections_list);
+        for (GList *l = copy_list_conn; l; l = l->next) {
+                g_info ("Closing connection %p ...", l->data);
+                SoupWebsocketConnection *conn = l->data;
+                g_signal_handlers_disconnect_by_data (conn, relay);
+                soup_websocket_connection_close (conn,
+                                                 SOUP_WEBSOCKET_CLOSE_NORMAL,
+                                                 "relay shutting down");
+                terminate_conection (conn, relay);
+        }
+
+        // Free all memory
+        g_list_free (copy_list_conn);
+
         g_clear_object (&relay->server);
         nostrum_storage_free (relay->storage);
 
         nostrum_relay_config_clear (relay->cfg);
         g_free (relay->cfg);
         g_free (relay);
+
+        g_info ("Relay destroyed!");
 }
 
 gboolean
@@ -178,7 +201,7 @@ nostrum_relay_listen (NostrumRelay  *relay,
                         g_info ("Started server on https://0.0.0.0:%d/  "
                                 "(NIP-11 with Accept: application/nostr+json)",
                                 relay->cfg->server_http_port);
-                        g_info("Started server on wss://0.0.0.0:%d/",
+                        g_info ("Started server on wss://0.0.0.0:%d/",
                                 relay->cfg->server_https_port);
 
                 } else {
@@ -414,7 +437,9 @@ handle_event (SoupWebsocketConnection *conn,
         // Forward event to matching subscriptions -----------------------------
         g_debug ("Checking subscriptions for event id=%s",
                  nostrum_event_get_id (event));        
-        for (GList *node = connections_list; node != NULL; node = node->next) {
+        for (GList *node = relay->connections_list;
+             node != NULL;
+             node = node->next) {
                 if (conn == node->data)
                         continue;
                 SoupWebsocketConnection *iconn =
@@ -548,9 +573,9 @@ handle_close (SoupWebsocketConnection *conn, JsonArray *arr)
                 return;
         }
         JsonNode *id_node = json_array_get_element (arr, 1);
-        if (!JSON_NODE_HOLDS_VALUE(id_node) ||
-             json_node_get_value_type(id_node) != G_TYPE_STRING) {
-                g_debug("CLOSE: subscription id must be a string");
+        if (!JSON_NODE_HOLDS_VALUE (id_node) ||
+             json_node_get_value_type (id_node) != G_TYPE_STRING) {
+                g_debug ("CLOSE: subscription id must be a string");
                 return;
         }
         
@@ -640,7 +665,7 @@ on_ws_message (SoupWebsocketConnection *conn,
                 g_debug ("Unknown/unsupported message type: '%s'", typ);
         }
         
-        g_debug("Done handling message");
+        g_debug ("Done handling message");
 }
 
 // =============================================================================
@@ -650,7 +675,9 @@ on_ws_message (SoupWebsocketConnection *conn,
 static void
 on_ws_error (SoupWebsocketConnection *conn, GError *error, gpointer u)
 {
-        const gchar *ip = g_object_get_data(G_OBJECT(conn), "client-ip");
+        (void)u;
+
+        const gchar *ip = g_object_get_data (G_OBJECT(conn), "client-ip");
         guint16 port = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (conn),
                                                             "client-port"));
 
@@ -660,16 +687,25 @@ on_ws_error (SoupWebsocketConnection *conn, GError *error, gpointer u)
                    error ? error->message : "unknown");
 }
 
+
 static void
-on_ws_closed (SoupWebsocketConnection *conn, gpointer u)
+terminate_conection (SoupWebsocketConnection *conn, NostrumRelay *relay)
 {
-        (void)u;
-        const gchar *ip = g_object_get_data(G_OBJECT(conn), "client-ip");
+        const gchar *ip = g_object_get_data (G_OBJECT(conn), "client-ip");
         guint16 port = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (conn),
                                                             "client-port"));
 
-        g_info ("WS connection closed: %s:%d", ip, port);
-        connections_list = g_list_remove (connections_list, conn);
+        g_debug ("Terminating connection %p: %s:%d", conn, ip, port);
+        relay->connections_list = g_list_remove (relay->connections_list, conn);
+
+        g_object_unref (conn);
+}
+
+static void
+on_ws_closed (SoupWebsocketConnection *conn, gpointer u)
+{
+        g_debug ("WS closed callback on conn: %p", conn);
+        terminate_conection(conn, (NostrumRelay *)u);
 }
 
 static void
@@ -690,11 +726,11 @@ on_ws_connected (SoupServer               *server,
         gchar *ip_str = NULL;
         guint16 port = 0;
         if (G_IS_INET_SOCKET_ADDRESS (addr)) {
-                GInetSocketAddress *inet_sock = G_INET_SOCKET_ADDRESS(addr);
+                GInetSocketAddress *inet_sock = G_INET_SOCKET_ADDRESS (addr);
                 GInetAddress *inet_addr =
                   g_inet_socket_address_get_address (G_INET_SOCKET_ADDRESS (addr));
                 ip_str = g_inet_address_to_string (inet_addr);
-                port = g_inet_socket_address_get_port(inet_sock);
+                port = g_inet_socket_address_get_port (inet_sock);
         } else {
                 ip_str = g_strdup ("unknown");
         }
@@ -706,19 +742,15 @@ on_ws_connected (SoupServer               *server,
                            "client-port",
                            GUINT_TO_POINTER(port));
 
+        relay->connections_list = g_list_append (relay->connections_list, conn);
+
         // keep the connection alive
         g_object_ref (conn);
-        g_signal_connect_swapped (conn,
-                                  "closed",
-                                  G_CALLBACK (g_object_unref),
-                                  conn);
-        g_signal_connect (conn, "message", G_CALLBACK (on_ws_message), NULL);
-        g_signal_connect (conn, "error", G_CALLBACK (on_ws_error), NULL);
-        g_signal_connect (conn, "closed", G_CALLBACK (on_ws_closed), NULL);
+        g_signal_connect (conn, "message", G_CALLBACK (on_ws_message), relay);
+        g_signal_connect (conn, "error", G_CALLBACK (on_ws_error), relay);
+        g_signal_connect (conn, "closed", G_CALLBACK (on_ws_closed), relay);
 
         g_object_set_data (G_OBJECT (conn), "nostrum-relay", relay);
-
-        connections_list = g_list_append (connections_list, conn);
 }
 
 
@@ -775,7 +807,7 @@ on_nip11 (SoupServer        *server,
                                           "application/nostr+json",
                                           SOUP_MEMORY_COPY,
                                           nip11_json_str,
-                                          strlen(nip11_json_str));
+                                          strlen (nip11_json_str));
 
         SoupMessageHeaders *resh =
             soup_server_message_get_response_headers (msg);
@@ -816,7 +848,7 @@ msg_response_to_event (SoupWebsocketConnection       *conn,
 
         const gchar *msg_reason = reason ? reason : (accepted ? "accepted"
                                                               : "rejected");
-        g_autoptr(NostrumMsgOk) ok = nostrum_msg_ok_new ();
+        g_autoptr (NostrumMsgOk) ok = nostrum_msg_ok_new ();
 
         nostrum_msg_ok_set_id (ok, id);
         nostrum_msg_ok_set_accepted (ok, accepted);
