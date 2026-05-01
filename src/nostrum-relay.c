@@ -109,7 +109,7 @@ nostrum_relay_new (const struct NostrumRelayConfig *cfg)
         soup_server_add_handler (relay->server, "/", on_nip11, relay->cfg, NULL);
 
         // Storage
-        g_info ("Initializing relay storage with db path: %s",
+        g_message  ("Initializing relay storage with db path: %s",
                 relay->cfg->db_path);
         relay->storage = nostrum_storage_new (relay->cfg->db_path);
         GError *repo_err = NULL;
@@ -128,14 +128,14 @@ nostrum_relay_free (NostrumRelay *relay)
         if (!relay)
                 return;
 
-        g_info ("Destroying relay ...");
+        g_message  ("Destroying relay ...");
 
         soup_server_disconnect (relay->server);
 
-        g_info ("Shutting down all relay connections ...");
+        g_message  ("Shutting down all relay connections ...");
         GList *copy_list_conn = g_list_copy (relay->connections_list);
         for (GList *l = copy_list_conn; l; l = l->next) {
-                g_info ("Closing connection %p ...", l->data);
+                g_message  ("Closing connection %p ...", l->data);
                 SoupWebsocketConnection *conn = l->data;
                 g_signal_handlers_disconnect_by_data (conn, relay);
                 soup_websocket_connection_close (conn,
@@ -154,7 +154,7 @@ nostrum_relay_free (NostrumRelay *relay)
         g_free (relay->cfg);
         g_free (relay);
 
-        g_info ("Relay destroyed!");
+        g_message  ("Relay destroyed!");
 }
 
 gboolean
@@ -175,7 +175,7 @@ nostrum_relay_listen (NostrumRelay  *relay,
                 const gchar *f_key = relay->cfg->server_tls_key;
                 if (g_file_test (f_cert, G_FILE_TEST_EXISTS) &&
                     g_file_test (f_key, G_FILE_TEST_EXISTS)) {
-                        g_info ("Loading TLS certificate file ...");
+                        g_message  ("Loading TLS certificate file ...");
                         g_autoptr (GTlsCertificate) cert =
                           g_tls_certificate_new_from_files (f_cert,
                                                             f_key,
@@ -198,10 +198,10 @@ nostrum_relay_listen (NostrumRelay  *relay,
                                 return FALSE;
                         }
 
-                        g_info ("Started server on https://0.0.0.0:%d/  "
+                        g_message  ("Started server on https://0.0.0.0:%d/  "
                                 "(NIP-11 with Accept: application/nostr+json)",
                                 relay->cfg->server_http_port);
-                        g_info ("Started server on wss://0.0.0.0:%d/",
+                        g_message  ("Started server on wss://0.0.0.0:%d/",
                                 relay->cfg->server_https_port);
 
                 } else {
@@ -219,10 +219,10 @@ nostrum_relay_listen (NostrumRelay  *relay,
                         return FALSE;
                 }
 
-                g_info ("Started server on http://0.0.0.0:%d/  "
+                g_message  ("Started server on http://0.0.0.0:%d/  "
                         "(NIP-11 with Accept: application/nostr+json)",
                         relay->cfg->server_http_port);
-                g_info ("Started server on ws://0.0.0.0:%d",
+                g_message  ("Started server on ws://0.0.0.0:%d",
                         relay->cfg->server_http_port);
         }
 
@@ -735,7 +735,7 @@ on_ws_connected (SoupServer               *server,
                 ip_str = g_strdup ("unknown");
         }
 
-        g_info ("New connection established from %s:%d", ip_str, port);
+        g_info  ("New connection established from %s:%d", ip_str, port);
 
         g_object_set_data_full (G_OBJECT(conn), "client-ip", ip_str, g_free);
         g_object_set_data (G_OBJECT (conn),

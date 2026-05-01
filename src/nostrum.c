@@ -31,22 +31,16 @@ main (int argc, char **argv)
         (void)argc;
         (void)argv;
 
-        printf ("    _   __           __\n");
-        printf ("   / | / /___  _____/ /________  ______ ___\n");
-        printf ("  /  |/ / __ \\/ ___/ __/ ___/ / / / __ `__ \\\n");
-        printf (" / /|  / /_/ (__  ) /_/ /  / /_/ / / / / / /\n");
-        printf ("/_/ |_/\\____/____/\\__/_/   \\__,_/_/ /_/ /_/\n\n");
-        printf ("                          v%s\n\n", NOSTRUM_VERSION);
-
-        // FIXME remove this
-        g_setenv ("G_MESSAGES_DEBUG",
-                  "nostrum nostrum-relay nostrum-storage nostrum-config",
-                  TRUE);
-
-        g_info ("Starting nostrum v%s ...", NOSTRUM_VERSION);
+        g_message ("    _   __           __");
+        g_message ("   / | / /___  _____/ /________  ______ ___");
+        g_message ("  /  |/ / __ \\/ ___/ __/ ___/ / / / __ `__ \\");
+        g_message (" / /|  / /_/ (__  ) /_/ /  / /_/ / / / / / /");
+        g_message ("/_/ |_/\\____/____/\\__/_/   \\__,_/_/ /_/ /_/");
+        g_message ("                          v%s", NOSTRUM_VERSION);
+        g_message("");
+        g_message ("Starting nostrum v%s ...", NOSTRUM_VERSION);
 
         // LOAD CONFIGURATION --------------------------------------------------
-        g_info ("Loading config ...");
         struct NostrumRelayConfig cfg;
         nostrum_relay_config_init (&cfg);
 

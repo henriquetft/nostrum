@@ -174,7 +174,7 @@ nostrum_relay_config_load (struct NostrumRelayConfig *cfg, GError **error)
                 if (nostrum_relay_config_load_from_file (path,
                                                          cfg,
                                                          &local_error)) {
-                        g_info ("Loaded config from: %s", path);
+                        g_message ("Loaded config from: %s", path);
 
                         nostrum_relay_config_validate (cfg, &local_error);
                         if (local_error) {
