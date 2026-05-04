@@ -13,8 +13,10 @@
 #include "nostrum-filter.h"
 #include <glib.h>
 #include <sqlite3.h>
-
 #include <stdio.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <glib/gstdio.h>
 
 #define G_LOG_DOMAIN "nostrum-storage"
 
@@ -22,6 +24,7 @@ G_DEFINE_QUARK (nostrum-storage-error-quark, nostrum_storage_error)
 
 struct _NostrumStorage
 {
+        gchar    *db_dir;
         gchar    *db_file;
         sqlite3  *db;
 };
@@ -71,18 +74,21 @@ get_tag_clauses_per_filter (const GPtrArray *filters);
 static void
 append_tag_exists_clause (GString *sql, guint n_values);
 
+static gchar *
+create_or_check_db_file(const gchar *db_dir, GError **err);
+
 // =============================================================================
 // CONSTRUCTORS / DESTRUCTORS
 // =============================================================================
 
-NostrumStorage *
-nostrum_storage_new (const gchar *db_file)
-{
-        g_return_val_if_fail (db_file != NULL, NULL);
 
-        NostrumStorage *storage = g_new0 (NostrumStorage, 1);
-        storage->db_file = g_strdup (db_file);
-        storage->db      = NULL;
+NostrumStorage *
+nostrum_storage_new (const gchar *db_dir)
+{
+        g_return_val_if_fail (db_dir != NULL, NULL);
+
+        NostrumStorage  *storage = g_new0 (NostrumStorage, 1);
+        storage->db_dir = db_dir;
         return storage;
 }
 
@@ -194,8 +200,13 @@ nostrum_storage_init (NostrumStorage *storage, GError **err)
         // Preconditions
         g_return_val_if_fail (err == NULL || *err == NULL,    FALSE);
         g_return_val_if_fail (storage != NULL,                FALSE);
-        g_return_val_if_fail (storage->db_file != NULL,       FALSE);
+        g_return_val_if_fail (storage->db_dir != NULL,        FALSE);
         g_return_val_if_fail (storage->db == NULL,            FALSE);
+
+        storage->db_file = create_or_check_db_file(storage->db_dir, err);
+        if (!storage->db_file) {
+                return FALSE;
+        }
 
         int rc = sqlite3_open (storage->db_file, &storage->db);
         if (rc != SQLITE_OK) {
@@ -1140,4 +1151,67 @@ append_tag_exists_clause (GString *sql, guint n_values)
                               "AND et.value IN ");
         append_in_list_placeholders (sql, n_values);
         g_string_append (sql, ")");
+}
+
+static gchar *
+create_or_check_db_file(const gchar *db_dir, GError **err)
+{
+        g_return_val_if_fail (err == NULL || *err == NULL, NULL);
+        g_return_val_if_fail (db_dir != NULL, NULL);
+
+        gchar           *db_file = NULL;
+        NostrumStorage  *storage;
+        struct stat      st;
+
+        db_file = g_build_filename (db_dir, "nostrum.db", NULL);
+
+        if (g_stat (db_file, &st) == 0) {
+                if (!S_ISREG (st.st_mode)) {
+                        g_set_error (err,
+                                     NOSTRUM_STORAGE_ERROR,
+                                     NOSTRUM_STORAGE_ERROR_INIT,
+                                     "Database path is not a regular file: %s",
+                                     db_file);
+                        g_free (db_file);
+                        return NULL;
+                }
+
+                if (g_access (db_file, R_OK | W_OK) != 0) {
+                        g_set_error (err,
+                                     NOSTRUM_STORAGE_ERROR,
+                                     NOSTRUM_STORAGE_ERROR_INIT,
+                                     "No read/write permission for db file: %s",
+                                     db_file);
+                        g_free (db_file);
+                        return NULL;
+                }
+
+        } else {
+                // create File
+                FILE *fp = g_fopen (db_file, "w");
+
+                if (!fp) {
+                        g_set_error (err,
+                                     NOSTRUM_STORAGE_ERROR,
+                                     NOSTRUM_STORAGE_ERROR_INIT,
+                                     "Cannot create db file: %s",
+                                     db_file);
+                        g_free (db_file);
+                        return NULL;
+                }
+
+                fclose (fp);
+
+                if (g_access (db_file, R_OK | W_OK) != 0) {
+                        g_set_error (err,
+                                     NOSTRUM_STORAGE_ERROR,
+                                     NOSTRUM_STORAGE_ERROR_INIT,
+                                     "Created database file has no read/write permission: %s",
+                                     db_file);
+                        g_free (db_file);
+                        return NULL;
+                }
+        }
+
+        return db_file;
 }

@@ -1,0 +1,16 @@
+[server]
+host=0.0.0.0
+http_port=8080
+https_port=0
+#tls_cert=
+#tls_key=
+
+[database]
+type=sqlite
+dir=.
+
+[info]
+name=Relay Nostrum
+description=Nostrum relay
+contact=admin@admin.me
+

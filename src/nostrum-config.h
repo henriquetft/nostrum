@@ -35,7 +35,7 @@ struct NostrumRelayConfig
 
         // Database section
         gchar    *db_type;
-        gchar    *db_path;
+        gchar    *db_dir;
 
         // Info section
         gchar    *info_name;
