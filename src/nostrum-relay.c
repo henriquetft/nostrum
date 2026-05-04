@@ -109,9 +109,9 @@ nostrum_relay_new (const struct NostrumRelayConfig *cfg)
         soup_server_add_handler (relay->server, "/", on_nip11, relay->cfg, NULL);
 
         // Storage
-        g_message  ("Initializing relay storage with db path: %s",
-                relay->cfg->db_path);
-        relay->storage = nostrum_storage_new (relay->cfg->db_path);
+        g_message ("Initializing relay storage with db dir: %s",
+                   relay->cfg->db_dir);
+        relay->storage = nostrum_storage_new (relay->cfg->db_dir);
         GError *repo_err = NULL;
         if (!nostrum_storage_init (relay->storage, &repo_err)) {
                 g_critical ("Failed to init relay storage: %s",

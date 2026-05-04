@@ -54,8 +54,7 @@ struct _MyFixture
         gboolean      test_done;
         gboolean      test_success;
         guint         timeout_id;
-        gchar        *tmpdir;       // owned
-        gchar        *db_path;      // owned
+        gchar        *db_dir;       // owned
 
 
         // Variables for the subscription-forward test
@@ -395,20 +394,15 @@ ws_fixture_setup (MyFixture *f, gconstpointer user_data)
         f->loop = g_main_loop_new (NULL, FALSE);
         f->timeout_id = 0;
 
-        f->tmpdir = g_dir_make_tmp ("nostrum-relay-test-XXXXXX", &error);
+        f->db_dir = g_dir_make_tmp ("nostrum-relay-test-XXXXXX", &error);
         g_assert_no_error (error);
-        g_assert_nonnull (f->tmpdir);
-
-        f->db_path = g_build_filename (f->tmpdir, "nostrum_relay.db", NULL);
-        g_assert_nonnull (f->db_path);
-
-        g_message ("File db for test: %s", f->db_path);
+        g_assert_nonnull (f->db_dir);
 
         struct NostrumRelayConfig cfg;
         nostrum_relay_config_init (&cfg);
         cfg.server_http_port = NOSTRUM_TEST_PORT;
         cfg.server_host = NOSTRUM_TEST_HOSTNAME;
-        cfg.db_path = f->db_path;
+        cfg.db_dir = f->db_dir;
         cfg.db_type = "sqlite";
         cfg.info_name = "Test Relay";
         cfg.info_description = "Relay for testing";
@@ -480,14 +474,9 @@ ws_fixture_teardown (MyFixture *f, gconstpointer user_data)
                 f->events_received = NULL;
         }
 
-        if (f->db_path) {
-                g_remove (f->db_path);
-                g_clear_pointer (&f->db_path, g_free);
-        }
-
-        if (f->tmpdir) {
-                g_rmdir (f->tmpdir);
-                g_clear_pointer (&f->tmpdir, g_free);
+        if (f->db_dir) {
+                g_rmdir (f->db_dir);
+                g_clear_pointer (&f->db_dir, g_free);
         }
 }
 

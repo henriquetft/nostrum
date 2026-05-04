@@ -18,23 +18,31 @@
 
 typedef struct
 {
-        gchar             *db_path;
+        gchar             *db_dir;
         NostrumStorage    *storage;
 } StorageFixture;
 
 
+// static gchar *
+// make_tmp_db_path (void)
+// {
+//         // Creates a real temp file and returns its path.
+//         // sqlite3_open will use it.
+//         gchar *tmpl = g_strdup ("/tmp/nostrum-storage-test-XXXXXX.db");
+//         int fd = g_mkstemp (tmpl);
+//         g_assert_cmpint (fd, >=, 0);
+//         g_close (fd, NULL);
+//         return tmpl;
+// }
+
 static gchar *
-make_tmp_db_path (void)
+make_tmp_db_dir (void)
 {
-        // Creates a real temp file and returns its path.
-        // sqlite3_open will use it.
-        gchar *tmpl = g_strdup ("/tmp/nostrum-storage-test-XXXXXX.db");
-        int fd = g_mkstemp (tmpl);
-        g_assert_cmpint (fd, >=, 0);
-        g_close (fd, NULL);
+        gchar *tmpl = g_strdup ("/tmp/nostrum-storage-test-XXXXXX");
+        gchar *dir = g_mkdtemp (tmpl);
+        g_assert_nonnull (dir);
         return tmpl;
 }
-
 
 // =============================================================================
 // HEX CONSTANTS
@@ -240,9 +248,8 @@ storage_fixture_setup_empty (StorageFixture *fx, gconstpointer user_data)
         (void)user_data;
 
         // Create storage ---------------------------------------------------------
-        fx->db_path = make_tmp_db_path ();
-        fx->storage = nostrum_storage_new (fx->db_path);
-        g_assert_nonnull (fx->storage);
+        fx->db_dir = make_tmp_db_dir ();
+        fx->storage = nostrum_storage_new (fx->db_dir);
 
         // Init storage -----------------------------------------------------------
         g_autoptr (GError) err = NULL;
@@ -287,11 +294,11 @@ storage_fixture_teardown (StorageFixture *fx, gconstpointer user_data)
                 fx->storage = NULL;
         }
 
-        if (fx->db_path) {
+        if (fx->db_dir) {
                 //g_remove (fx->db_path);
-                printf ("Removing temp db file: %s\n", fx->db_path);
-                g_free (fx->db_path);
-                fx->db_path = NULL;
+                //printf ("Removing temp db directory: %s\n", fx->db_dir);
+                g_free (fx->db_dir);
+                fx->db_dir = NULL;
         }
 }
 
@@ -303,13 +310,15 @@ static void
 test_storage_init_fail (StorageFixture *fx, gconstpointer user_data)
 {
         (void)user_data;
+        (void)fx;
 
-        // Create storage with invalid path ---------------------------------------
         g_autoptr (GError) err = NULL;
-        NostrumStorage *bad_repo = nostrum_storage_new ("/invalid/path/to/db/file.db");
+        
+        // Create storage with invalid path ------------------------------------
+        NostrumStorage *bad_repo = nostrum_storage_new ("/invalid/path/to/db");
         g_assert_nonnull (bad_repo);
 
-        // Init storage should fail -----------------------------------------------
+        // Init storage should fail --------------------------------------------
         gboolean storage_init_ok = nostrum_storage_init (bad_repo, &err);
         g_assert_false (storage_init_ok);
         g_assert_error (err, NOSTRUM_STORAGE_ERROR, NOSTRUM_STORAGE_ERROR_INIT);

@@ -53,6 +53,12 @@ configure_file(
     @ONLY
 )
 
+configure_file(
+    ${CMAKE_SOURCE_DIR}/nostrum.ini.example
+    ${CMAKE_BINARY_DIR}/nostrum.ini
+    COPYONLY
+)
+
 # pkg-config
 find_package(PkgConfig REQUIRED)
 

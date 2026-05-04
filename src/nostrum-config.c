@@ -58,6 +58,9 @@ get_optional_int (GKeyFile *kf,
 static gboolean
 is_file_readable (const gchar *path, GError **error);
 
+static gboolean
+is_dir_rw_accessible (const gchar *path, GError **error);
+
 
 
 // =============================================================================
@@ -76,7 +79,7 @@ nostrum_relay_config_init (struct NostrumRelayConfig *cfg)
                 .server_tls_cert = NULL,
                 .server_tls_key = NULL,
 
-                .db_path = NULL,
+                .db_dir = NULL,
                 .db_type = NULL,
 
                 .info_name = NULL,
@@ -94,7 +97,7 @@ nostrum_relay_config_clear (struct NostrumRelayConfig *cfg)
         g_clear_pointer (&cfg->server_tls_cert, g_free);
         g_clear_pointer (&cfg->server_tls_key, g_free);
 
-        g_clear_pointer (&cfg->db_path, g_free);
+        g_clear_pointer (&cfg->db_dir, g_free);
         g_clear_pointer (&cfg->db_type, g_free);
 
         g_clear_pointer (&cfg->info_name, g_free);
@@ -120,7 +123,7 @@ nostrum_relay_config_copy (struct NostrumRelayConfig *dst,
         dst->server_tls_cert = g_strdup (src->server_tls_cert);
         dst->server_tls_key = g_strdup (src->server_tls_key);
 
-        dst->db_path = g_strdup (src->db_path);
+        dst->db_dir = g_strdup (src->db_dir);
         dst->db_type = g_strdup (src->db_type);
 
         dst->info_name = g_strdup (src->info_name);
@@ -236,7 +239,7 @@ nostrum_relay_config_load_from_file (const char *path,
         if (!get_required_string (kf, "database", "type", &cfg->db_type, error))
                 goto error;
 
-        if (!get_required_string (kf, "database", "path", &cfg->db_path, error))
+        if (!get_required_string (kf, "database", "dir", &cfg->db_dir, error))
                 goto error;
 
         // INFO SECTION --------------------------------------------------------
@@ -364,20 +367,19 @@ nostrum_relay_config_validate (struct NostrumRelayConfig *cfg, GError **error)
                 return FALSE;
         }
 
-        if (cfg->db_path == NULL) {
+        if (cfg->db_dir == NULL) {
                 g_set_error (error, NOSTRUM_CONFIG_ERROR,
                              NOSTRUM_CONFIG_ERROR_MISSING_VALUE,
-                             "Database Path is required for sqlite");
+                             "Database Directory is required for sqlite");
                 return FALSE;
         }
 
-
         GError *tmp_error = NULL;
-        if (!is_file_readable (cfg->db_path, &tmp_error)) {
-                g_set_error(error,
-                            NOSTRUM_CONFIG_ERROR,
-                            NOSTRUM_CONFIG_ERROR_INVALID_VALUE,
-                            "%s", tmp_error ? tmp_error->message : "");
+        if (!is_dir_rw_accessible (cfg->db_dir, &tmp_error)) {
+                g_set_error (error,
+                             NOSTRUM_CONFIG_ERROR,
+                             NOSTRUM_CONFIG_ERROR_INVALID_VALUE,
+                             "%s", tmp_error ? tmp_error->message : "");
                 g_clear_error (&tmp_error);
                 return FALSE;
         }
@@ -401,7 +403,7 @@ nostrum_relay_config_to_string (const struct NostrumRelayConfig *cfg)
 
             "\n=== Database ===\n"
             "type: %s\n"
-            "path: %s\n"
+            "dir: %s\n"
 
             "\n=== Info ===\n"
             "name: %s\n"
@@ -415,7 +417,7 @@ nostrum_relay_config_to_string (const struct NostrumRelayConfig *cfg)
             cfg->server_tls_key ? cfg->server_tls_key : "(null)",
 
             cfg->db_type ? cfg->db_type : "(null)",
-            cfg->db_path ? cfg->db_path : "(null)",
+            cfg->db_dir ? cfg->db_dir : "(null)",
 
             cfg->info_name ? cfg->info_name : "(null)",
             cfg->info_description ? cfg->info_description : "(null)",
@@ -565,6 +567,46 @@ is_file_readable (const gchar *path, GError **error)
                              G_FILE_ERROR,
                              g_file_error_from_errno (errno),
                              "No read permission for file: %s", path);
+                return FALSE;
+        }
+
+        return TRUE;
+}
+
+static gboolean
+is_dir_rw_accessible (const gchar *path, GError **error)
+{
+        struct stat st;
+
+        if (!path || *path == '\0') {
+                g_set_error (error,
+                             G_FILE_ERROR,
+                             G_FILE_ERROR_INVAL,
+                             "No directory path specified");
+                return FALSE;
+        }
+
+        if (g_stat (path, &st) != 0) {
+                g_set_error (error,
+                             G_FILE_ERROR,
+                             g_file_error_from_errno (errno),
+                             "Cannot stat directory: %s", path);
+                return FALSE;
+        }
+
+        if (!S_ISDIR (st.st_mode)) {
+                g_set_error (error,
+                             G_FILE_ERROR,
+                             G_FILE_ERROR_INVAL,
+                             "Not a directory: %s", path);
+                return FALSE;
+        }
+
+        if (g_access (path, R_OK | W_OK | X_OK) != 0) {
+                g_set_error (error,
+                             G_FILE_ERROR,
+                             g_file_error_from_errno (errno),
+                             "No read/write permission for directory: %s", path);
                 return FALSE;
         }
 

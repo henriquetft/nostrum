@@ -34,7 +34,7 @@ GQuark nostrum_storage_error_quark (void);
 typedef struct _NostrumStorage NostrumStorage;
 
 // CONSTRUCTORS / DESTRUCTORS --------------------------------------------------
-NostrumStorage *nostrum_storage_new     (const gchar *db_file);
+NostrumStorage *nostrum_storage_new     (const gchar *db_dir);
 
 void            nostrum_storage_free    (NostrumStorage *storage);
 
