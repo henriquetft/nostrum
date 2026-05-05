@@ -111,7 +111,7 @@ nostrum_relay_new (const struct NostrumRelayConfig *cfg)
         // Storage
         g_message ("Initializing relay storage with db dir: %s",
                    relay->cfg->db_dir);
-        relay->storage = nostrum_storage_new (relay->cfg->db_dir);
+        relay->storage = nostrum_storage_new (relay->cfg);
         GError *repo_err = NULL;
         if (!nostrum_storage_init (relay->storage, &repo_err)) {
                 g_critical ("Failed to init relay storage: %s",
