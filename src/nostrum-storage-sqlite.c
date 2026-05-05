@@ -11,6 +11,7 @@
 #include "nostrum-storage.h"
 #include "nostrum-event.h"
 #include "nostrum-filter.h"
+#include "nostrum-config.h"
 #include <glib.h>
 #include <sqlite3.h>
 #include <stdio.h>
@@ -83,12 +84,16 @@ create_or_check_db_file(const gchar *db_dir, GError **err);
 
 
 NostrumStorage *
-nostrum_storage_new (const gchar *db_dir)
+nostrum_storage_new (const struct NostrumRelayConfig *cfg)
 {
-        g_return_val_if_fail (db_dir != NULL, NULL);
+        g_return_val_if_fail (cfg != NULL, NULL);
 
         NostrumStorage  *storage = g_new0 (NostrumStorage, 1);
-        storage->db_dir = db_dir;
+
+        if (cfg->db_dir) {
+                storage->db_dir = g_strdup(cfg->db_dir);
+        }
+
         return storage;
 }
 
@@ -200,7 +205,6 @@ nostrum_storage_init (NostrumStorage *storage, GError **err)
         // Preconditions
         g_return_val_if_fail (err == NULL || *err == NULL,    FALSE);
         g_return_val_if_fail (storage != NULL,                FALSE);
-        g_return_val_if_fail (storage->db_dir != NULL,        FALSE);
         g_return_val_if_fail (storage->db == NULL,            FALSE);
 
         storage->db_file = create_or_check_db_file(storage->db_dir, err);
@@ -1157,11 +1161,19 @@ static gchar *
 create_or_check_db_file(const gchar *db_dir, GError **err)
 {
         g_return_val_if_fail (err == NULL || *err == NULL, NULL);
-        g_return_val_if_fail (db_dir != NULL, NULL);
 
         gchar           *db_file = NULL;
         NostrumStorage  *storage;
         struct stat      st;
+
+
+        if (!db_dir) {
+                g_set_error (err,
+                             NOSTRUM_STORAGE_ERROR,
+                             NOSTRUM_STORAGE_ERROR_INIT,
+                             "No db_dir specified in config");
+                return NULL;
+        }
 
         db_file = g_build_filename (db_dir, "nostrum.db", NULL);
 

@@ -12,6 +12,7 @@
 #define NOSTRUM_STORAGE_H
 
 #include "nostrum-event.h"
+#include "nostrum-config.h"
 #include <glib.h>
 
 G_BEGIN_DECLS
@@ -34,7 +35,7 @@ GQuark nostrum_storage_error_quark (void);
 typedef struct _NostrumStorage NostrumStorage;
 
 // CONSTRUCTORS / DESTRUCTORS --------------------------------------------------
-NostrumStorage *nostrum_storage_new     (const gchar *db_dir);
+NostrumStorage *nostrum_storage_new     (const struct NostrumRelayConfig *cfg);
 
 void            nostrum_storage_free    (NostrumStorage *storage);
 

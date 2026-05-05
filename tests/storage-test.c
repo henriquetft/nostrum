@@ -12,7 +12,7 @@
 #include "nostrum-filter.h"
 #include "nostrum-storage.h"
 #include "nostrum-utils.h"
-
+#include "nostrum-config.h"
 #include <glib.h>
 #include <glib/gstdio.h>
 
@@ -247,13 +247,19 @@ storage_fixture_setup_empty (StorageFixture *fx, gconstpointer user_data)
 {
         (void)user_data;
 
-        // Create storage ---------------------------------------------------------
-        fx->db_dir = make_tmp_db_dir ();
-        fx->storage = nostrum_storage_new (fx->db_dir);
+        struct NostrumRelayConfig cfg;
+        nostrum_relay_config_init (&cfg);
+        cfg.db_type = "sqlite";
 
-        // Init storage -----------------------------------------------------------
+        // Create storage ------------------------------------------------------
+        fx->db_dir = make_tmp_db_dir ();
+        cfg.db_dir = fx->db_dir;
+        fx->storage = nostrum_storage_new (&cfg);
+
+        // Init storage --------------------------------------------------------
         g_autoptr (GError) err = NULL;
         gboolean storage_init_ok = nostrum_storage_init (fx->storage, &err);
+        g_assert_no_error (err);
         g_assert_true (storage_init_ok);
         g_assert_no_error (err);
 }
@@ -307,15 +313,45 @@ storage_fixture_teardown (StorageFixture *fx, gconstpointer user_data)
 // =============================================================================
 
 static void
-test_storage_init_fail (StorageFixture *fx, gconstpointer user_data)
+test_storage_init_invalid_dir_fail (StorageFixture *fx, gconstpointer user_data)
 {
         (void)user_data;
         (void)fx;
 
         g_autoptr (GError) err = NULL;
+
+        struct NostrumRelayConfig cfg;
+        nostrum_relay_config_init (&cfg);
         
         // Create storage with invalid path ------------------------------------
-        NostrumStorage *bad_repo = nostrum_storage_new ("/invalid/path/to/db");
+        cfg.db_dir = "/invalid/path/to/db";
+        cfg.db_type = "sqlite";
+        NostrumStorage *bad_repo = nostrum_storage_new (&cfg);
+        g_assert_nonnull (bad_repo);
+
+        // Init storage should fail --------------------------------------------
+        gboolean storage_init_ok = nostrum_storage_init (bad_repo, &err);
+        g_assert_false (storage_init_ok);
+        g_assert_error (err, NOSTRUM_STORAGE_ERROR, NOSTRUM_STORAGE_ERROR_INIT);
+
+        nostrum_storage_free (bad_repo);
+}
+
+static void
+test_storage_init_no_dir_fail (StorageFixture *fx, gconstpointer user_data)
+{
+        (void)user_data;
+        (void)fx;
+
+        g_autoptr (GError) err = NULL;
+
+        struct NostrumRelayConfig cfg;
+        nostrum_relay_config_init (&cfg);
+        
+        // Create storage with invalid path ------------------------------------
+        cfg.db_dir = NULL;
+        cfg.db_type = "sqlite";
+        NostrumStorage *bad_repo = nostrum_storage_new (&cfg);
         g_assert_nonnull (bad_repo);
 
         // Init storage should fail --------------------------------------------
@@ -561,13 +597,20 @@ main (int argc, char **argv)
 {
         g_test_init (&argc, &argv, NULL);
 
-        g_test_add ("/storage/storage_init_fail",
+        g_test_add ("/storage/storage_init_invalid_dir_fail",
                     StorageFixture,
                     NULL,
                     NULL,
-                    test_storage_init_fail,
+                    test_storage_init_invalid_dir_fail,
                     NULL);
 
+        g_test_add ("/storage/storage_init_no_dir_fail",
+                    StorageFixture,
+                    NULL,
+                    NULL,
+                    test_storage_init_no_dir_fail,
+                    NULL);
+        
         g_test_add ("/storage/search_returns_no_results",
                     StorageFixture,
                     NULL,
