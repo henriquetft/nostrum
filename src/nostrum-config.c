@@ -133,7 +133,8 @@ nostrum_relay_config_copy (struct NostrumRelayConfig *dst,
 
 
 gboolean
-nostrum_relay_config_load (struct NostrumRelayConfig *cfg, GError **error)
+nostrum_relay_config_load (struct NostrumRelayConfig *cfg,
+                           GError **error)
 {
         const gchar *env_path;
         const gchar *paths[3];
@@ -206,9 +207,9 @@ nostrum_relay_config_load (struct NostrumRelayConfig *cfg, GError **error)
 }
 
 gboolean
-nostrum_relay_config_load_from_file (const char *path,
-                                     struct NostrumRelayConfig *cfg,
-                                     GError **error)
+nostrum_relay_config_load_from_file (const char                 *path,
+                                     struct NostrumRelayConfig  *cfg,
+                                     GError                    **error)
 {
         GKeyFile *kf = g_key_file_new ();
         GError *err = NULL;

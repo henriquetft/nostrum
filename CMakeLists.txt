@@ -18,7 +18,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Tests
 include(CTest)
 
-option(ENABLE_ASAN "Enable address/leak sanitizer" ON)
+option(ENABLE_ASAN "Enable address/leak sanitizer" OFF)
 
 
 execute_process(
