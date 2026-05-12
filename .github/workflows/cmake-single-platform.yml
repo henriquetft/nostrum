@@ -22,7 +22,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install dependencies
-      run: sudo apt-get install -y libsqlite3-dev libglib2.0-dev libjson-glib-dev libsecp256k1-dev libsoup-3.0-dev
+      run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev libglib2.0-dev libjson-glib-dev libsecp256k1-dev libsoup-3.0-dev
       
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
