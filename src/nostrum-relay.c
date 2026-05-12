@@ -29,7 +29,6 @@
 #include <json-glib/json-glib.h>
 #include <libsoup/soup.h>
 
-
 #define G_LOG_DOMAIN "nostrum-relay"
 
 struct _NostrumRelay
@@ -96,7 +95,7 @@ nostrum_relay_new (const struct NostrumRelayConfig *cfg)
 
         relay->server = soup_server_new (NULL);
 
-        // WS em "/"
+        // WS handler
         soup_server_add_websocket_handler (relay->server,
                                            "/",
                                            NULL,
@@ -105,8 +104,12 @@ nostrum_relay_new (const struct NostrumRelayConfig *cfg)
                                            relay,
                                            NULL);
 
-        // NIP-11
-        soup_server_add_handler (relay->server, "/", on_nip11, relay->cfg, NULL);
+        // NIP-11 handler
+        soup_server_add_handler (relay->server,
+                                 "/",
+                                 on_nip11,
+                                 relay->cfg,
+                                 NULL);
 
         // Storage
         g_message ("Initializing relay storage with db dir: %s",
@@ -125,14 +128,13 @@ nostrum_relay_new (const struct NostrumRelayConfig *cfg)
 void
 nostrum_relay_free (NostrumRelay *relay)
 {
-        if (!relay)
-                return;
+        g_return_if_fail (relay != NULL);
 
-        g_message  ("Destroying relay ...");
+        g_message ("Destroying relay ...");
 
         soup_server_disconnect (relay->server);
 
-        g_message  ("Shutting down all relay connections ...");
+        g_message ("Shutting down all relay connections ...");
         GList *copy_list_conn = g_list_copy (relay->connections_list);
         for (GList *l = copy_list_conn; l; l = l->next) {
                 g_message  ("Closing connection %p ...", l->data);
@@ -146,10 +148,8 @@ nostrum_relay_free (NostrumRelay *relay)
 
         // Free all memory
         g_list_free (copy_list_conn);
-
         g_clear_object (&relay->server);
         nostrum_storage_free (relay->storage);
-
         nostrum_relay_config_clear (relay->cfg);
         g_free (relay->cfg);
         g_free (relay);
@@ -194,15 +194,15 @@ nostrum_relay_listen (NostrumRelay  *relay,
                                              relay->cfg->server_https_port,
                                              SOUP_SERVER_LISTEN_HTTPS,
                                              error)) {
-                                g_critical("Listen TLS: %s", (*error)->message);
+                                g_critical ("Listen TLS: %s", (*error)->message);
                                 return FALSE;
                         }
 
-                        g_message  ("Started server on https://0.0.0.0:%d/  "
+                        g_message ("Started server on https://0.0.0.0:%d/  "
                                 "(NIP-11 with Accept: application/nostr+json)",
                                 relay->cfg->server_http_port);
-                        g_message  ("Started server on wss://0.0.0.0:%d/",
-                                relay->cfg->server_https_port);
+                        g_message ("Started server on wss://0.0.0.0:%d/",
+                                   relay->cfg->server_https_port);
 
                 } else {
                         g_warning ("Missing PEM files: unable to start HTTPS");
@@ -219,11 +219,11 @@ nostrum_relay_listen (NostrumRelay  *relay,
                         return FALSE;
                 }
 
-                g_message  ("Started server on http://0.0.0.0:%d/  "
+                g_message ("Started server on http://0.0.0.0:%d/  "
                         "(NIP-11 with Accept: application/nostr+json)",
                         relay->cfg->server_http_port);
-                g_message  ("Started server on ws://0.0.0.0:%d",
-                        relay->cfg->server_http_port);
+                g_message ("Started server on ws://0.0.0.0:%d",
+                           relay->cfg->server_http_port);
         }
 
         return TRUE;
@@ -235,15 +235,15 @@ nostrum_relay_listen (NostrumRelay  *relay,
 
 
 static void
-process_nip09(NostrumStorage *storage, const NostrumEvent *event)
+process_nip09 (NostrumStorage *storage, const NostrumEvent *event)
 {
         if (nostrum_event_get_kind (event) != 5)
                 return;
         
         g_debug ("Processing NIP-09 event id=%s", nostrum_event_get_id (event));
         
-        const char *evt_pubkey = nostrum_event_get_pubkey(event);
-        gint64 evt_created_at = nostrum_event_get_created_at(event);
+        const char *evt_pubkey = nostrum_event_get_pubkey (event);
+        gint64 evt_created_at = nostrum_event_get_created_at (event);
 
         GPtrArray *e_tags  = g_ptr_array_new_with_free_func (g_free);
         GPtrArray *a_tags  = g_ptr_array_new_with_free_func (g_free);
@@ -429,7 +429,7 @@ handle_event (SoupWebsocketConnection *conn,
                 return;
         }
 
-        process_nip09(relay->storage, event);
+        process_nip09 (relay->storage, event);
 
         // Send OK (accepted) --------------------------------------------------
         msg_response_to_event (conn, event, TRUE, "");
@@ -460,9 +460,9 @@ handle_event (SoupWebsocketConnection *conn,
 
 // Returns the subscription (transfer none)
 static const NostrumSubscription *
-add_or_replace_subscription(SoupWebsocketConnection  *conn,
-                            const NostrumMsgReq      *req,
-                            const gchar              *sub_id)
+add_or_replace_subscription (SoupWebsocketConnection  *conn,
+                             const NostrumMsgReq      *req,
+                             const gchar              *sub_id)
 {
         NostrumSubscription *sub = nostrum_subscription_new (sub_id);
         nostrum_subscription_take_filters (sub,
@@ -677,7 +677,7 @@ on_ws_error (SoupWebsocketConnection *conn, GError *error, gpointer u)
 {
         (void)u;
 
-        const gchar *ip = g_object_get_data (G_OBJECT(conn), "client-ip");
+        const gchar *ip = g_object_get_data (G_OBJECT(conn), "effective-ip");
         guint16 port = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (conn),
                                                             "client-port"));
 
@@ -691,7 +691,7 @@ on_ws_error (SoupWebsocketConnection *conn, GError *error, gpointer u)
 static void
 terminate_conection (SoupWebsocketConnection *conn, NostrumRelay *relay)
 {
-        const gchar *ip = g_object_get_data (G_OBJECT(conn), "client-ip");
+        const gchar *ip = g_object_get_data (G_OBJECT(conn), "effective-ip");
         guint16 port = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (conn),
                                                             "client-port"));
 
@@ -721,26 +721,46 @@ on_ws_connected (SoupServer               *server,
 
         NostrumRelay *relay = (NostrumRelay *)user_data;
 
+        SoupMessageHeaders *headers;
+        const char *forw_ip = NULL;
+        headers = soup_server_message_get_request_headers (msg);
+        forw_ip = soup_message_headers_get_one (headers, "X-Forwarded-For");
+        g_debug ("X-Forwarded-For IP: %s\n", forw_ip ? forw_ip : "(none)");
+
+        gchar *xff_ip = NULL;
+        if (forw_ip) {
+                xff_ip = g_strdup (forw_ip);
+        }
 
         GSocketAddress *addr = soup_server_message_get_remote_address (msg);
-        gchar *ip_str = NULL;
+        gchar *client_ip = NULL;
         guint16 port = 0;
         if (G_IS_INET_SOCKET_ADDRESS (addr)) {
                 GInetSocketAddress *inet_sock = G_INET_SOCKET_ADDRESS (addr);
-                GInetAddress *inet_addr =
-                  g_inet_socket_address_get_address (G_INET_SOCKET_ADDRESS (addr));
-                ip_str = g_inet_address_to_string (inet_addr);
+                GInetAddress *inet_addr = 
+                    g_inet_socket_address_get_address (inet_sock);
+                client_ip = g_inet_address_to_string (inet_addr);
                 port = g_inet_socket_address_get_port (inet_sock);
-        } else {
-                ip_str = g_strdup ("unknown");
+                g_debug ("Remote address IP: %s, port: %d", client_ip, port);
         }
 
-        g_info  ("New connection established from %s:%d", ip_str, port);
+        gchar *effective_ip = NULL;
+        if (xff_ip) {
+                effective_ip = g_strdup (xff_ip);
+        } else if (client_ip) {
+                effective_ip = g_strdup (client_ip);
+        }
 
-        g_object_set_data_full (G_OBJECT(conn), "client-ip", ip_str, g_free);
+        g_info ("New connection established from %s", effective_ip);
+
+        g_object_set_data_full (G_OBJECT(conn), "client-ip", client_ip, g_free);
+        g_object_set_data_full (G_OBJECT(conn), "xff-ip", xff_ip, g_free);
+        g_object_set_data_full (G_OBJECT(conn), "effective-ip", effective_ip,
+                                g_free);
+
         g_object_set_data (G_OBJECT (conn),
                            "client-port",
-                           GUINT_TO_POINTER(port));
+                           GUINT_TO_POINTER (port));
 
         relay->connections_list = g_list_append (relay->connections_list, conn);
 

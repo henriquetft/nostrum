@@ -136,6 +136,8 @@ gboolean
 nostrum_relay_config_load (struct NostrumRelayConfig *cfg,
                            GError **error)
 {
+        g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
         const gchar *env_path;
         const gchar *paths[3];
         guint i;
