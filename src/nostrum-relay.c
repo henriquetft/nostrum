@@ -405,7 +405,8 @@ handle_event (SoupWebsocketConnection *conn,
                  nostrum_event_get_kind (event),
                  nostrum_event_get_created_at (event));
 
-        if (!nostrum_storage_save (relay->storage, event, &err)) {
+        if (!nostrum_event_is_ephemeral (event) &&
+            !nostrum_storage_save (relay->storage, event, &err)) {
                 g_debug ("Failed to persist event: %s",
                          err ? err->message : "unknown error");
                 
