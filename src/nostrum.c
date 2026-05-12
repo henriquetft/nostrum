@@ -66,7 +66,7 @@ main (int argc, char **argv)
         }
 
         if (show_version) {
-                g_print ("Version: %s\n", NOSTRUM_VERSION);
+                g_print ("%s\n", NOSTRUM_VERSION);
                 retcode = EXIT_SUCCESS;
                 goto end;
         }
