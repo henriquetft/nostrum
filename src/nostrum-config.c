@@ -157,8 +157,8 @@ nostrum_relay_config_load (struct NostrumRelayConfig *cfg,
         }
 
         paths[0] = env_path;
-        paths[1] = "/etc/nostrum.ini";
-        paths[2] = "./nostrum.ini";
+        paths[1] = "/etc/nostrum.conf";
+        paths[2] = "./nostrum.conf";
 
         for (i = 0; i < 3; i++) {
                 const gchar *path = paths[i];
@@ -203,7 +203,7 @@ nostrum_relay_config_load (struct NostrumRelayConfig *cfg,
                      G_FILE_ERROR,
                      G_FILE_ERROR_NOENT,
                      "No valid readable configuration file found (checked "
-                     "NOSTRUM_CONFIG, /etc/nostrum.ini, ./nostrum.ini)");
+                     "NOSTRUM_CONFIG, /etc/nostrum.conf, ./nostrum.conf)");
 
         return FALSE;
 }

@@ -54,8 +54,8 @@ configure_file(
 )
 
 configure_file(
-    ${CMAKE_SOURCE_DIR}/nostrum.ini.example
-    ${CMAKE_BINARY_DIR}/nostrum.ini
+    ${CMAKE_SOURCE_DIR}/nostrum.conf.example
+    ${CMAKE_BINARY_DIR}/nostrum.conf
     COPYONLY
 )
 
