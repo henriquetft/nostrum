@@ -30,9 +30,31 @@ The codebase is still evolving and many features are incomplete or unstable. Bre
 - libsoup
 - SQLite (or configurable backend)
 
-## 🚀 Usage
+## 🚀 Build and run
 
-_Usage instructions will be added soon._
+Clone repository and build the relay:
+```bash
+apt-get install -y git cmake libsqlite3-dev libglib2.0-dev libjson-glib-dev libsecp256k1-dev libsoup-3.0-dev
+git clone https://github.com/henriquetft/nostrum && cd nostrum
+cmake -B build/ -DCMAKE_BUILD_TYPE=Release
+cmake --build build/ --config Release
+```
+
+The nostrum relay executable is generated in build/nostrum. 
+
+To run the relay:
+```bash
+cd build
+./nostrum
+```
+
+This will use the configuration file that was copied into the current directory (build/). Note that the configuration file specifies the directory where the SQLite .db database file will be stored.
+Nostrum searches for the configuration file in the following order:
+1. Passed as an argument via `--config`
+2. `NOSTRUM_CONFIG` environment variable
+3. `/etc/nostrum.conf`
+4. `./nostrum.conf`
+
 
 ## 🤝 Contributing
 
